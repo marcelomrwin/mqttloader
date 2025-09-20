@@ -18,9 +18,9 @@ package mqttloader.client;
 
 import static mqttloader.Constants.PUB_CLIENT_ID_PREFIX;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import mqttloader.Loader;
 import mqttloader.Record;
@@ -32,8 +32,8 @@ public abstract class AbstractPublisher extends AbstractClient implements Runnab
     protected int numMessage;
     protected final int pubInterval;
 
-    protected ScheduledExecutorService service;
-    protected ScheduledFuture<?> future;
+    protected ExecutorService service;
+    protected CompletableFuture<Void> future;
     protected volatile boolean cancelled = false;
     private Recorder recorder;
 
@@ -47,12 +47,37 @@ public abstract class AbstractPublisher extends AbstractClient implements Runnab
     }
 
     public void start(long delay) {
-        service = Executors.newSingleThreadScheduledExecutor();
-        if(pubInterval==0){
-            future = service.schedule(this, delay, TimeUnit.MICROSECONDS);
-        }else{
-            future = service.scheduleAtFixedRate(this, delay, pubInterval, TimeUnit.MICROSECONDS);
-        }
+        service = Executors.newVirtualThreadPerTaskExecutor();
+        future = CompletableFuture.runAsync(() -> {
+            try {
+                Thread.sleep(delay / 1000);
+                
+                // Send all messages
+                for(int i = 0; i < numMessage; i++) {
+                    if(cancelled) {
+                        Loader.LOGGER.info("Publish task cancelled (" + clientId + ")");
+                        break;
+                    }
+                    
+                    if(isConnected()) {
+                        publish();
+                    } else {
+                        Loader.LOGGER.warning("Failed to publish (" + clientId + ")");
+                    }
+                    
+                    // Sleep between messages (except for the last one)
+                    if(i < numMessage - 1 && !cancelled && pubInterval > 0) {
+                        Thread.sleep(pubInterval / 1000);
+                    }
+                }
+                
+                Loader.LOGGER.info("Completed to publish (" + clientId + ")");
+                Loader.cdl.countDown();
+                
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, service);
     }
 
     @Override

@@ -1,0 +1,60 @@
+FROM docker.io/library/eclipse-temurin:21-jdk-alpine AS builder
+
+WORKDIR /build
+COPY . .
+
+RUN chmod +x ./gradlew && \
+    ./gradlew clean build --no-daemon --no-watch-fs -Dorg.gradle.jvmargs="-Xmx1g -XX:MaxMetaspaceSize=256m"
+
+RUN cd build/distributions && \
+    tar -xf mqttloader.tar
+
+FROM docker.io/library/eclipse-temurin:21-jre-alpine
+
+RUN apk update && \
+    apk add --no-cache gettext bash && \
+    rm -rf /var/cache/apk/*
+
+WORKDIR /app
+
+COPY --from=builder /build/build/distributions/mqttloader/ .
+COPY container/mqttloader.template.conf .
+COPY container/generate-config.sh .
+COPY container/entrypoint.sh .
+COPY container/logging.properties .
+
+RUN chmod +x bin/mqttloader generate-config.sh entrypoint.sh
+
+ENV MQTT_BROKER=""
+ENV MQTT_BROKER_PORT="1883"
+ENV MQTT_VERSION="5"
+ENV MQTT_NUM_PUBLISHERS="1"
+ENV MQTT_NUM_SUBSCRIBERS="1"
+ENV MQTT_QOS_PUBLISHER="0"
+ENV MQTT_QOS_SUBSCRIBER="0"
+ENV MQTT_SHARED_SUBSCRIPTION="false"
+ENV MQTT_RETAIN="false"
+ENV MQTT_TOPIC="mqttloader-test-topic"
+ENV MQTT_PAYLOAD="20"
+ENV MQTT_NUM_MESSAGES="100"
+ENV MQTT_RAMP_UP="0"
+ENV MQTT_RAMP_DOWN="0"
+ENV MQTT_INTERVAL="0"
+ENV MQTT_SUBSCRIBER_TIMEOUT="5"
+ENV MQTT_EXEC_TIME="60"
+ENV MQTT_LOG_LEVEL="INFO"
+ENV MQTT_NTP="es.pool.ntp.org"
+ENV MQTT_OUTPUT=""
+ENV TZ="Europe/Madrid"
+ENV MQTT_USER_NAME=""
+ENV MQTT_PASSWORD=""
+ENV MQTT_TLS=""
+ENV MQTT_TLS_ROOTCA_CERT=""
+ENV MQTT_TLS_CLIENT_KEY=""
+ENV MQTT_TLS_CLIENT_CERT_CHAIN=""
+
+ENV PATH="/app/bin:${PATH}"
+
+RUN mkdir -p /app/logs
+
+CMD ["./entrypoint.sh"]
