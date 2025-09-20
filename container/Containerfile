@@ -12,8 +12,17 @@ RUN cd build/distributions && \
 FROM docker.io/library/eclipse-temurin:21-jre-alpine
 
 RUN apk update && \
-    apk add --no-cache gettext bash && \
-    rm -rf /var/cache/apk/*
+    apk add --no-cache gettext bash procps && \
+    rm -rf /var/cache/apk/* && \
+    mkdir -p /etc/security && \
+    echo '* soft nofile 65536' > /etc/security/limits.conf && \
+    echo '* hard nofile 65536' >> /etc/security/limits.conf && \
+    echo '* soft nproc 32768' >> /etc/security/limits.conf && \
+    echo '* hard nproc 32768' >> /etc/security/limits.conf && \
+    echo 'root soft nofile 65536' >> /etc/security/limits.conf && \
+    echo 'root hard nofile 65536' >> /etc/security/limits.conf && \
+    echo 'root soft nproc 32768' >> /etc/security/limits.conf && \
+    echo 'root hard nproc 32768' >> /etc/security/limits.conf
 
 WORKDIR /app
 
@@ -54,6 +63,8 @@ ENV MQTT_TLS_CLIENT_KEY=""
 ENV MQTT_TLS_CLIENT_CERT_CHAIN=""
 
 ENV PATH="/app/bin:${PATH}"
+ENV JAVA_OPTS="-XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+ENV MQTTLOADER_OPTS="-Djdk.virtualThreadScheduler.parallelism=32 -Djdk.virtualThreadScheduler.maxPoolSize=256"
 
 RUN mkdir -p /app/logs
 

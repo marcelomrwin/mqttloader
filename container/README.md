@@ -287,119 +287,6 @@ podman run --rm -it \
   quay.io/masales/mqttloader:0.8.6
 ```
 
-### NTP and Timezone Configuration
-
-The container uses Madrid, Spain timezone and NTP server by default for accurate time synchronization:
-- **Default Timezone**: `Europe/Madrid` (via `TZ` variable)  
-- **Default NTP server**: `es.pool.ntp.org` (Madrid, Spain pool)
-
-#### Default Configuration (Madrid time) - Distributed Test
-```bash
-# Step 1: Start subscriber first (Madrid defaults)
-podman run --rm -it \
-  --name mqtt-subscriber-madrid \
-  -v ./mqtt-results:/app/output:Z \
-  -e MQTT_BROKER=192.168.122.49 \
-  -e MQTT_USER_NAME=amq-broker \
-  -e MQTT_PASSWORD=amq-broker \
-  -e MQTT_NUM_PUBLISHERS=0 \
-  -e MQTT_NUM_SUBSCRIBERS=3 \
-  -e MQTT_SUBSCRIBER_TIMEOUT=90 \
-  -e MQTT_EXEC_TIME=150 \
-  -e MQTT_OUTPUT=/app/output \
-  -e MQTT_TOPIC=distributed-test \
-  quay.io/masales/mqttloader:0.8.6 &
-
-# Step 2: Wait then start publisher 
-sleep 10
-
-podman run --rm -it \
-  --name mqtt-publisher-madrid \
-  -e MQTT_BROKER=192.168.122.49 \
-  -e MQTT_USER_NAME=amq-broker \
-  -e MQTT_PASSWORD=amq-broker \
-  -e MQTT_NUM_PUBLISHERS=3 \
-  -e MQTT_NUM_SUBSCRIBERS=0 \
-  -e MQTT_NUM_MESSAGES=5000 \
-  -e MQTT_TOPIC=distributed-test \
-  quay.io/masales/mqttloader:0.8.6
-```
-
-#### Custom NTP and Timezone Example
-```bash
-# Step 1: Subscriber with US timezone (start first)
-podman run --rm -it \
-  --name mqtt-subscriber-us \
-  -v ./mqtt-results:/app/output:Z \
-  -e MQTT_BROKER=192.168.122.49 \
-  -e MQTT_USER_NAME=amq-broker \
-  -e MQTT_PASSWORD=amq-broker \
-  -e MQTT_NUM_PUBLISHERS=0 \
-  -e MQTT_NUM_SUBSCRIBERS=3 \
-  -e MQTT_SUBSCRIBER_TIMEOUT=90 \
-  -e MQTT_EXEC_TIME=150 \
-  -e TZ=America/New_York \
-  -e MQTT_NTP=us.pool.ntp.org \
-  -e MQTT_OUTPUT=/app/output \
-  -e MQTT_TOPIC=distributed-test \
-  quay.io/masales/mqttloader:0.8.6 &
-
-# Step 2: Wait then start publisher (Madrid timezone)
-sleep 10
-
-podman run --rm -it \
-  --name mqtt-publisher-madrid \
-  -e MQTT_BROKER=192.168.122.49 \
-  -e MQTT_USER_NAME=amq-broker \
-  -e MQTT_PASSWORD=amq-broker \
-  -e MQTT_NUM_PUBLISHERS=3 \
-  -e MQTT_NUM_SUBSCRIBERS=0 \
-  -e MQTT_NUM_MESSAGES=5000 \
-  -e MQTT_TOPIC=distributed-test \
-  quay.io/masales/mqttloader:0.8.6
-```
-
-#### Multi-Region Testing
-```bash
-# Step 1: Start Asian subscriber first (Tokyo) 
-podman run --rm -it \
-  --name mqtt-subscriber-asia \
-  -v ./mqtt-results:/app/output:Z \
-  -e MQTT_BROKER=192.168.122.49 \
-  -e MQTT_USER_NAME=amq-broker \
-  -e MQTT_PASSWORD=amq-broker \
-  -e TZ=Asia/Tokyo \
-  -e MQTT_NTP=jp.pool.ntp.org \
-  -e MQTT_NUM_PUBLISHERS=0 \
-  -e MQTT_NUM_SUBSCRIBERS=2 \
-  -e MQTT_SUBSCRIBER_TIMEOUT=120 \
-  -e MQTT_EXEC_TIME=180 \
-  -e MQTT_OUTPUT=/app/output \
-  -e MQTT_TOPIC=global-test \
-  quay.io/masales/mqttloader:0.8.6 &
-
-# Step 2: Wait then start European publisher (Germany)
-sleep 15
-
-podman run --rm -it \
-  --name mqtt-publisher-eu \
-  -e MQTT_BROKER=192.168.122.49 \
-  -e MQTT_USER_NAME=amq-broker \
-  -e MQTT_PASSWORD=amq-broker \
-  -e TZ=Europe/Berlin \
-  -e MQTT_NTP=de.pool.ntp.org \
-  -e MQTT_NUM_PUBLISHERS=2 \
-  -e MQTT_NUM_SUBSCRIBERS=0 \
-  -e MQTT_NUM_MESSAGES=10000 \
-  -e MQTT_TOPIC=global-test \
-  quay.io/masales/mqttloader:0.8.6
-```
-
-**Popular NTP servers by region:**
-- Europe: `de.pool.ntp.org`, `fr.pool.ntp.org`, `uk.pool.ntp.org`
-- Americas: `us.pool.ntp.org`, `ca.pool.ntp.org`, `br.pool.ntp.org` 
-- Asia: `jp.pool.ntp.org`, `cn.pool.ntp.org`, `kr.pool.ntp.org`
-- Global: `pool.ntp.org`
 
 ### TLS/SSL Configuration
 
@@ -590,5 +477,55 @@ podman run --rm -it \
 -v ./pub_output:/app/output:Z \
 -e MQTT_OUTPUT=/app/output \
 -v ./logs/pub:/app/logs:Z \
+quay.io/masales/mqttloader:0.8.6
+```
+
+## Heavy Test
+
+### Consumers
+```shell
+podman run --rm -it \
+--name mqttloader-subscriber \
+--cpus="4.0" \
+--memory="4g" \
+-v ./heavy-test-results:/app/output:Z \
+-v ./heavy-test-logs/sub:/app/logs:Z \
+--security-opt seccomp=unconfined \
+--security-opt apparmor=unconfined \
+-e MQTT_BROKER=192.168.122.49 \
+-e MQTT_USER_NAME=amq-broker \
+-e MQTT_PASSWORD=amq-broker \
+-e MQTT_NUM_PUBLISHERS=0 \
+-e MQTT_NUM_SUBSCRIBERS=100 \
+-e MQTT_QOS_SUBSCRIBER=1 \
+-e MQTT_SUBSCRIBER_TIMEOUT=120 \
+-e MQTT_EXEC_TIME=350 \
+-e MQTT_TOPIC=heavy-load-test \
+-e MQTT_OUTPUT=/app/output \
+quay.io/masales/mqttloader:0.8.6
+```
+
+### Publisher
+```shell
+podman run --rm -it \
+--name mqttloader-publisher \
+--cpus="4.0" \
+--memory="4g" \
+-e MQTT_BROKER=192.168.122.49 \
+-v ./heavy-test-logs/pub:/app/logs:Z \
+-v ./pub_output:/app/output:Z \
+--security-opt seccomp=unconfined \
+--security-opt apparmor=unconfined \
+-e MQTT_USER_NAME=amq-broker \
+-e MQTT_PASSWORD=amq-broker \
+-e MQTT_NUM_PUBLISHERS=100 \
+-e MQTT_NUM_SUBSCRIBERS=0 \
+-e MQTT_NUM_MESSAGES=100000 \
+-e MQTT_PAYLOAD=1024 \
+-e MQTT_INTERVAL=1000 \
+-e MQTT_QOS_PUBLISHER=1 \
+-e MQTT_EXEC_TIME=300 \
+-e MQTT_TOPIC=heavy-load-test \
+-e MQTT_OUTPUT=/app/output \
 quay.io/masales/mqttloader:0.8.6
 ```
