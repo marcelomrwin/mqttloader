@@ -480,18 +480,68 @@ podman run --rm -it \
 quay.io/masales/mqttloader:0.8.6
 ```
 
-## Heavy Test
+## Heavy Test - Multi-Pod Deployment
 
-### Consumers
+For maximum load testing, deploy multiple subscriber and publisher containers in parallel. Each container uses separate volumes to avoid conflicts.
+
+### Manual Deployment
+
+#### Subscribers (Start First)
 ```shell
-podman run --rm -it \
---name mqttloader-subscriber \
+# Subscriber Pod 1
+podman run --rm -d \
+--name mqttloader-sub-01 \
 --cpus="4.0" \
 --memory="4g" \
--v ./heavy-test-results:/app/output:Z \
--v ./heavy-test-logs/sub:/app/logs:Z \
+-v ./heavy-test-results/sub-01:/app/output:Z \
+-v ./heavy-test-logs/sub-01:/app/logs:Z \
 --security-opt seccomp=unconfined \
 --security-opt apparmor=unconfined \
+-e JAVA_OPTS="-Xmx3g" \
+-e MQTT_BROKER=192.168.122.49 \
+-e MQTT_USER_NAME=amq-broker \
+-e MQTT_PASSWORD=amq-broker \
+-e MQTT_NUM_PUBLISHERS=0 \
+-e MQTT_NUM_SUBSCRIBERS=100 \
+-e MQTT_QOS_SUBSCRIBER=1 \
+-e MQTT_SUBSCRIBER_TIMEOUT=120 \
+-e MQTT_EXEC_TIME=350 \
+-e MQTT_TOPIC=heavy-load-test \
+-e MQTT_OUTPUT=/app/output \
+quay.io/masales/mqttloader:0.8.6
+
+# Subscriber Pod 2
+podman run --rm -d \
+--name mqttloader-sub-02 \
+--cpus="4.0" \
+--memory="4g" \
+-v ./heavy-test-results/sub-02:/app/output:Z \
+-v ./heavy-test-logs/sub-02:/app/logs:Z \
+--security-opt seccomp=unconfined \
+--security-opt apparmor=unconfined \
+-e JAVA_OPTS="-Xmx3g" \
+-e MQTT_BROKER=192.168.122.49 \
+-e MQTT_USER_NAME=amq-broker \
+-e MQTT_PASSWORD=amq-broker \
+-e MQTT_NUM_PUBLISHERS=0 \
+-e MQTT_NUM_SUBSCRIBERS=100 \
+-e MQTT_QOS_SUBSCRIBER=1 \
+-e MQTT_SUBSCRIBER_TIMEOUT=120 \
+-e MQTT_EXEC_TIME=350 \
+-e MQTT_TOPIC=heavy-load-test \
+-e MQTT_OUTPUT=/app/output \
+quay.io/masales/mqttloader:0.8.6
+
+# Subscriber Pod 3
+podman run --rm -d \
+--name mqttloader-sub-03 \
+--cpus="4.0" \
+--memory="4g" \
+-v ./heavy-test-results/sub-03:/app/output:Z \
+-v ./heavy-test-logs/sub-03:/app/logs:Z \
+--security-opt seccomp=unconfined \
+--security-opt apparmor=unconfined \
+-e JAVA_OPTS="-Xmx3g" \
 -e MQTT_BROKER=192.168.122.49 \
 -e MQTT_USER_NAME=amq-broker \
 -e MQTT_PASSWORD=amq-broker \
@@ -505,17 +555,67 @@ podman run --rm -it \
 quay.io/masales/mqttloader:0.8.6
 ```
 
-### Publisher
+#### Publishers (Start After 30s Delay)
 ```shell
-podman run --rm -it \
---name mqttloader-publisher \
+# Publisher Pod 1
+podman run --rm -d \
+--name mqttloader-pub-01 \
 --cpus="4.0" \
 --memory="4g" \
--e MQTT_BROKER=192.168.122.49 \
--v ./heavy-test-logs/pub:/app/logs:Z \
--v ./pub_output:/app/output:Z \
+-v ./heavy-test-results/pub-01:/app/output:Z \
+-v ./heavy-test-logs/pub-01:/app/logs:Z \
 --security-opt seccomp=unconfined \
 --security-opt apparmor=unconfined \
+-e JAVA_OPTS="-Xmx3g" \
+-e MQTT_BROKER=192.168.122.49 \
+-e MQTT_USER_NAME=amq-broker \
+-e MQTT_PASSWORD=amq-broker \
+-e MQTT_NUM_PUBLISHERS=100 \
+-e MQTT_NUM_SUBSCRIBERS=0 \
+-e MQTT_NUM_MESSAGES=100000 \
+-e MQTT_PAYLOAD=1024 \
+-e MQTT_INTERVAL=1000 \
+-e MQTT_QOS_PUBLISHER=1 \
+-e MQTT_EXEC_TIME=300 \
+-e MQTT_TOPIC=heavy-load-test \
+-e MQTT_OUTPUT=/app/output \
+quay.io/masales/mqttloader:0.8.6
+
+# Publisher Pod 2
+podman run --rm -d \
+--name mqttloader-pub-02 \
+--cpus="4.0" \
+--memory="4g" \
+-v ./heavy-test-results/pub-02:/app/output:Z \
+-v ./heavy-test-logs/pub-02:/app/logs:Z \
+--security-opt seccomp=unconfined \
+--security-opt apparmor=unconfined \
+-e JAVA_OPTS="-Xmx3g" \
+-e MQTT_BROKER=192.168.122.49 \
+-e MQTT_USER_NAME=amq-broker \
+-e MQTT_PASSWORD=amq-broker \
+-e MQTT_NUM_PUBLISHERS=100 \
+-e MQTT_NUM_SUBSCRIBERS=0 \
+-e MQTT_NUM_MESSAGES=100000 \
+-e MQTT_PAYLOAD=1024 \
+-e MQTT_INTERVAL=1000 \
+-e MQTT_QOS_PUBLISHER=1 \
+-e MQTT_EXEC_TIME=300 \
+-e MQTT_TOPIC=heavy-load-test \
+-e MQTT_OUTPUT=/app/output \
+quay.io/masales/mqttloader:0.8.6
+
+# Publisher Pod 3
+podman run --rm -d \
+--name mqttloader-pub-03 \
+--cpus="4.0" \
+--memory="4g" \
+-v ./heavy-test-results/pub-03:/app/output:Z \
+-v ./heavy-test-logs/pub-03:/app/logs:Z \
+--security-opt seccomp=unconfined \
+--security-opt apparmor=unconfined \
+-e JAVA_OPTS="-Xmx3g" \
+-e MQTT_BROKER=192.168.122.49 \
 -e MQTT_USER_NAME=amq-broker \
 -e MQTT_PASSWORD=amq-broker \
 -e MQTT_NUM_PUBLISHERS=100 \
@@ -529,3 +629,51 @@ podman run --rm -it \
 -e MQTT_OUTPUT=/app/output \
 quay.io/masales/mqttloader:0.8.6
 ```
+
+### Automated Deployment
+
+Use the automated script for easier management:
+
+```bash
+# Show help and configuration
+./container/run-heavy-test.sh
+
+# Start heavy load test (cleans old data, creates fresh directories, starts 6 containers)
+./container/run-heavy-test.sh start
+
+# Monitor containers status and resource usage
+./container/run-heavy-test.sh monitor
+
+# Show logs for specific container
+./container/run-heavy-test.sh logs mqttloader-sub-01
+./container/run-heavy-test.sh logs mqttloader-pub-02
+
+# Show basic test results summary
+./container/run-heavy-test.sh results
+
+# Show detailed analysis with metrics and latency
+./container/run-heavy-test.sh analyze
+
+# Generate consolidated report file
+./container/run-heavy-test.sh report
+
+# Stop all containers
+./container/run-heavy-test.sh stop
+
+# Cleanup volumes (removes all test data with confirmation)
+./container/run-heavy-test.sh cleanup
+
+# Force cleanup without confirmation
+./container/run-heavy-test.sh force-clean
+```
+
+**Important:** The `start` command automatically cleans all previous test data to prevent contamination between test runs.
+
+**Test Scale:**
+- **300 Subscribers** (100 per container × 3)
+- **300 Publishers** (100 per container × 3)  
+- **30M Messages** (100k per publisher × 300)
+- **~30GB Data** (1KB payload × 30M messages)
+- **~5 Minutes** execution time
+- **Isolated Volumes** (no race conditions)
+- **Detached Mode** (automatic termination)
